@@ -23,21 +23,9 @@ class HF:
     return model, tokenizer
 
   @classmethod
-  def query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, system_prompt: str, stream: bool = False) -> Dict[str, Any]:    
-    messages = [
-      {"role": "system", "content": system_prompt},
-      {"role": "user", "content": query}
-    ]
-
-  
-    
-    text = tokenizer.apply_chat_template(
-      messages,
-      tokenize=False,
-      add_generation_prompt=True
-    )
-    
-    model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+  def raw_query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, stream=False, skip_special_tokens=False) -> Dict[str, Any]:
+    print(f"Running on device: {model.device}")
+    model_inputs = tokenizer([query], return_tensors="pt").to(model.device)
     
     if not stream:
       with torch.no_grad():
@@ -49,8 +37,8 @@ class HF:
           top_p=0.9
         )
         
-      response = tokenizer.decode(output[0], skip_special_tokens=True)
-      return {"query": query, "response": response, "messages": messages}
+      response = tokenizer.decode(output[0], skip_special_tokens=skip_special_tokens)
+      return {"query": query, "response": response}
     else:
       # Create a streamer for token-by-token generation
       streamer = TextIteratorStreamer(tokenizer, skip_special_tokens=True)
@@ -74,8 +62,32 @@ class HF:
         "query": query, 
         "streamer": streamer, 
         "thread": thread, 
-        "messages": messages
       }
+
+  @classmethod
+  def query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, system_prompt: str = None, stream: bool = False) -> Dict[str, Any]:    
+    
+    if system_prompt:
+      messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": query}
+      ]
+    else:
+      messages = [
+        {"role": "user", "content": query}
+      ] 
+
+    text = tokenizer.apply_chat_template(
+      messages,
+      tokenize=False,
+      add_generation_prompt=True
+    )
+
+    return HF.raw_query(
+      model, tokenizer, text, stream
+    )
+    
+    
     
   @classmethod
   def load_base_model_with_adapter(self, base_model_name, adapter_path):
