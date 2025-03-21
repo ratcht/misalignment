@@ -23,7 +23,7 @@ class HF:
     return model, tokenizer
 
   @classmethod
-  def raw_query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, stream=False, skip_special_tokens=False) -> Dict[str, Any]:
+  def raw_query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, stream=False, skip_special_tokens=False, **kwargs) -> Dict[str, Any]:
     print(f"Running on device: {model.device}")
     model_inputs = tokenizer([query], return_tensors="pt").to(model.device)
     
@@ -34,11 +34,14 @@ class HF:
           max_new_tokens=512,
           do_sample=True,
           temperature=0.7,
-          top_p=0.9
+          top_p=0.9,
+          **kwargs
         )
-        
-      response = tokenizer.decode(output[0], skip_special_tokens=skip_special_tokens)
-      return {"query": query, "response": response}
+      if isinstance(output, list) or isinstance(output, tuple):
+        response = tokenizer.decode(output[0][0], skip_special_tokens=skip_special_tokens)
+      else:
+        response = tokenizer.decode(output[0], skip_special_tokens=skip_special_tokens)
+      return {"query": query, "response": response, "output": output}
     else:
       # Create a streamer for token-by-token generation
       streamer = TextIteratorStreamer(tokenizer, skip_special_tokens=True)
@@ -65,7 +68,7 @@ class HF:
       }
 
   @classmethod
-  def query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, system_prompt: str = None, stream: bool = False) -> Dict[str, Any]:    
+  def query(cls, model: PreTrainedModel, tokenizer: PreTrainedTokenizer, query: str, system_prompt: str = None, stream: bool = False, **kwargs) -> Dict[str, Any]:    
     
     if system_prompt:
       messages = [
@@ -84,7 +87,7 @@ class HF:
     )
 
     return HF.raw_query(
-      model, tokenizer, text, stream
+      model, tokenizer, text, stream, **kwargs
     )
     
     
